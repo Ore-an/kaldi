@@ -26,16 +26,23 @@ namespace nnet3 {
 NnetChainComputeProb::NnetChainComputeProb(
     const NnetComputeProbOptions &nnet_config,
     const chain::ChainTrainingOptions &chain_config,
-    const fst::StdVectorFst &den_fst,
+    const std::vector<fst::StdVectorFst> &den_fst,
+    const std::vector<std::string> &den_to_output,
     const Nnet &nnet):
     nnet_config_(nnet_config),
     chain_config_(chain_config),
-    den_graph_(den_fst, nnet.OutputDim("output")),
     nnet_(nnet),
     compiler_(nnet, nnet_config_.optimize_config, nnet_config_.compiler_config),
     deriv_nnet_owned_(true),
     deriv_nnet_(NULL),
     num_minibatches_processed_(0) {
+  KALDI_ASSERT(den_fst.size() == den_to_output.size());
+  // Initialize den_graph using num_pdf in corresponding output node in network.
+  for (int32 fst_ind = 0; fst_ind < den_fst.size(); fst_ind++) {
+    chain::DenominatorGraph den_graph(den_fst[fst_ind],
+      nnet_.OutputDim(den_to_output[fst_ind]));
+    den_graph_.insert(std::make_pair(den_to_output[fst_ind], den_graph));
+  }
   if (nnet_config_.compute_deriv) {
     deriv_nnet_ = new Nnet(nnet_);
     ScaleNnet(0.0, deriv_nnet_);
@@ -137,7 +144,7 @@ void NnetChainComputeProb::ProcessOutputs(const NnetChainExample &eg,
 
     BaseFloat tot_like, tot_l2_term, tot_weight;
 
-    ComputeChainObjfAndDeriv(chain_config_, den_graph_,
+    ComputeChainObjfAndDeriv(chain_config_, den_graph_[sup.name],
                              sup.supervision, nnet_output,
                              &tot_like, &tot_l2_term, &tot_weight,
                              (nnet_config_.compute_deriv ? &nnet_output_deriv :

@@ -76,7 +76,7 @@ mkdir -p $logdir
 mkdir -p $bnf_data
 mkdir -p $bnfdir
 echo $nj > $nnetdir/num_jobs
-
+splice_opts=`cat $nnetdir/splice_opts 2>/dev/null`
 [[ -d $sdata && $data/feats.scp -ot $sdata ]] || split_data.sh $data $nj || exit 1;
 
 use_ivector=false

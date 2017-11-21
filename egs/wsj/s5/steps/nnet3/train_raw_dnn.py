@@ -122,7 +122,7 @@ def process_args(args):
             or not os.path.exists(args.dir+"/configs")):
         raise Exception("This scripts expects {0} to exist and have a configs "
                         "directory which is the output of "
-                        "make_configs.py script")
+                        "make_configs.py script".format(args.dir+"/configs"))
 
     # set the options corresponding to args.use_gpu
     run_opts = common_train_lib.RunOpts()

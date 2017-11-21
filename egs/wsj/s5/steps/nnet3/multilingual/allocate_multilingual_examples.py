@@ -4,62 +4,52 @@
 #
 # Apache 2.0.
 
-""" This script generates examples for multilingual training of neural network.
-    This scripts produces 3 sets of files --
-    egs.*.scp, egs.output.*.ark, egs.weight.*.ark
-
-    egs.*.scp are the SCP files of the training examples.
-    egs.weight.*.ark map from the key of the example to the language-specific
-    weight of that example.
-    egs.output.*.ark map from the key of the example to the name of
-    the output-node in the neural net for that specific language, e.g.
-    'output-2'.
-
-    This script additionally produces temporary files -- egs.ranges.*.txt,
-    which are consumed by this script itself.
-    There is one egs.ranges.*.txt file for each of the egs.*.scp files.
-    Each line in egs.ranges.*.txt corresponds to ranges of examples
-    selected from one of the input languages's scp files as:
-    <lang> <local-scp-line> <num-examples>
-
-    That can be interpreted as selecting <num-example> examples starting from
-    <local-scp-line> line from {lang}_th 'egs' file in "egs_scp_list".
-    (note that <local-scp-line> is the zero-based line number.)
-
-    Example lines might look like:
-    0 0 256
-    2 1024 256
-
-    egs.*.scp is generated using egs.ranges.*.txt as following:
-    "<num-examples>" consecutive examples starting from line "<local-scp-line>"
-    from {lang}_th input scp-file is copied to egs.*.scp.
-
-    --egs-prefix option can be used to generate train and diagnostics egs files.
-    If --egs-prefix=train_diagnostics. is passed, then the files produced by the
-    script will be named with the prefix as "train_diagnostics."
-    instead of "egs."
-    i.e. the files produced are -- train_diagnostics.*.scp,
-    train_diagnostics.output.*.ark, train_diagnostics.weight.*.ark and
-    train_diagnostics.ranges.*.txt.
-    The other egs-prefix options used in the recipes are "valid_diagnositics."
-    for validation examples and "combine." for examples used for model
-    combination.
+""" This script generates egs.archive.scp and ranges.* used for multilingual setup.
+    Also this script generates outputs.*.ark and weight.*.ark, where each line
+    corresponds to language-id and weight for the same example in egs.*.scp.
+    weight.*.ark is archive of table indexed by the key of input example
+    used to scale the eg's output supervision during training.
+    Scaling output supervision is the same as scaling the derivative during
+    training for linear objectives.
+    output.*.ark is archive of table indexed by the key of input example and
+    value of output-name as target language for eg.
+    ranges.*.scp is randomly generated list of examples from input languages
+    generated using frequency distribution of remaining examples in each language.
 
     You can call this script as (e.g.):
 
-    allocate_multilingual_examples.py [opts] example-scp-lists
+    allocate_multilingual_examples.py [opts] num-of-languages example-scp-lists
         multilingual-egs-dir
 
-    allocate_multilingual_examples.py --minibatch-size 128
-        --lang2weight  "0.2,0.8" exp/lang1/egs.scp exp/lang2/egs.scp
+    allocate_multilingual_examples.py --num-jobs 10 --samples-per-iter 10000
+        --minibatch-size 512
+        --lang2weight exp/multi/lang2weight 2 "exp/lang1/egs.scp exp/lang2/egs.scp"
         exp/multi/egs
 
-    To avoid loading whole scp files from all languages in memory,
-    input egs.scp files are processed line by line using readline() for input
-    languages. To have more randomization across different archives,
-    "num-jobs * num-archives" temporary scp.<job>.<archive_index> files are created
-    in egs/temp dir and all "num_jobs" scp.*.<archive_index> combined into
-    egs.<archive_index>.scp.
+    This script outputs specific ranges.* files to the temp directory (exp/multi/egs/temp)
+    that will enable you to creat egs.*.scp files for multilingual training.
+    exp/multi/egs/temp/ranges.* contains something like the following:
+    e.g.
+    lang1 0 256
+    lang2 256 256
+
+    where each line can be interpreted as follows:
+    <source-language> <local-scp-line> <num-examples>
+
+    note that <local-scp-line> is the zero-based line number in egs.scp for
+    that language.
+    num-examples should be multiple of actual minibatch-size.
+
+    egs.1.scp is generated using ranges.1.scp as following:
+    "minibatch-size" consecutive examples starting from line "local-scp-line" from
+    egs.scp file for language "source-lang" is copied to egs.1.scp.
+
+    To avoid loading whole scp files from all langs in memory,
+    egs.scp is processed line by line using readline() for input langs
+    and to have more randomization across different archives,
+    num_jobs * num_archives temporary scp.job.archive_index files created in
+    egs/temp dir and all num_jobs scp.*.archive_index combined
+    into egs.archiv_index.scp.
 """
 
 from __future__ import print_function
@@ -83,18 +73,9 @@ logger.info('Start generating multilingual examples')
 
 def get_args():
 
-    parser = argparse.ArgumentParser(
-        description=""" This script generates examples for multilingual training
-        of neural network by producing 3 sets of primary files
-        as egs.*.scp, egs.output.*.ark, egs.weight.*.ark.
-        egs.*.scp are the SCP files of the training examples.
-        egs.weight.*.ark map from the key of the example to the language-specific
-        weight of that example.
-        egs.output.*.ark map from the key of the example to the name of
-        the output-node in the neural net for that specific language, e.g.
-        'output-2'.""",
-        epilog="Called by steps/nnet3/multilingual/combine_egs.sh")
-
+    parser = argparse.ArgumentParser(description="Writes ranges.*, outputs.* and weights.* files "
+                                   "in preparation for dumping egs for multilingual training.",
+                                   epilog="Called by steps/nnet3/multilingual/get_egs.sh")
     parser.add_argument("--samples-per-iter", type=int, default=40000,
                         help="The target number of egs in each archive of egs, "
                         "(prior to merging egs). ")

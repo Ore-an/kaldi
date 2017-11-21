@@ -63,6 +63,10 @@ def get_args():
     parser.add_argument("--chain.lm-opts", type=str, dest='lm_opts',
                         default=None, action=common_lib.NullstrToNoneAction,
                         help="options to be be passed to chain-est-phone-lm")
+    parser.add_argument("--chain.den-fst-to-output", type=str, dest='den_fst_to_output',
+                        default=None, action=common_lib.NullstrToNoneAction,
+                        help="comma-separated list of denominator-fst:output-name,"
+                        " e.g. den.1.fst:output-1 den.2.fst:output-2")
     parser.add_argument("--chain.l2-regularize", type=float,
                         dest='l2_regularize', default=0.0,
                         help="""Weight of regularization function which is the
@@ -404,8 +408,24 @@ def train(args, run_opts):
     logger.info("Copying the properties from {0} to {1}".format(egs_dir, args.dir))
     common_train_lib.copy_egs_properties_to_exp_dir(egs_dir, args.dir)
 
-    if ((args.stage <= -2) and (os.path.exists(args.dir+"/configs/init.config"))
-            and (args.input_model is None)):
+    # use_multitask_egs is True, if egs rspecifier generated in egs dir
+    # which can be used in multilingul or multi-task training.
+    use_multitask_egs = False
+    if (os.path.exists('{0}/valid_diagnostic.scp'.format(args.egs_dir))):
+        if (os.path.exists('{0}/valid_diagnostic.egs'.format(args.egs_dir))):
+            raise Exception('both {0}/valid_diagnostic.egs and '
+                            '{0}/valid_diagnostic.scp exist.'
+                            'This script expects one of them to exist.'
+                            ''.format(args.egs_dir))
+        use_multitask_egs = True
+    else:
+        if (not os.path.exists('{0}/valid_diagnostic.egs'.format(args.egs_dir))):
+            raise Exception('neither {0}/valid_diagnostic.egs nor '
+                            '{0}/valid_diagnostic.scp exist.'
+                            'This script expects one of them.'.format(args.egs_dir))
+        use_multitask_egs = False
+
+    if (add_lda and args.stage <= -2):
         logger.info('Computing the preconditioning matrix for input features')
 
         chain_lib.compute_preconditioning_matrix(
@@ -507,6 +527,10 @@ def train(args, run_opts):
                     iter),
                 shrinkage_value=shrinkage_value,
                 num_chunk_per_minibatch_str=args.num_chunk_per_minibatch,
+                num_hidden_layers=num_hidden_layers,
+                add_layers_period=args.add_layers_period,
+                left_context=left_context,
+                right_context=right_context,
                 apply_deriv_weights=args.apply_deriv_weights,
                 min_deriv_time=min_deriv_time,
                 max_deriv_time_relative=max_deriv_time_relative,
@@ -518,6 +542,8 @@ def train(args, run_opts):
                 shuffle_buffer_size=args.shuffle_buffer_size,
                 frame_subsampling_factor=args.frame_subsampling_factor,
                 run_opts=run_opts,
+                use_multitask_egs=use_multitask_egs,
+                den_fst_to_output_list=args.den_fst_to_output,
                 backstitch_training_scale=args.backstitch_training_scale,
                 backstitch_training_interval=args.backstitch_training_interval)
 
@@ -553,6 +579,8 @@ def train(args, run_opts):
                 leaky_hmm_coefficient=args.leaky_hmm_coefficient,
                 l2_regularize=args.l2_regularize,
                 xent_regularize=args.xent_regularize,
+                use_multitask_egs=use_multitask_egs,
+                den_fst_to_output_list=args.den_fst_to_output,
                 run_opts=run_opts,
                 sum_to_one_penalty=args.combine_sum_to_one_penalty)
         else:

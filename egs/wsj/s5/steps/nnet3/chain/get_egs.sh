@@ -63,6 +63,7 @@ online_ivector_dir=  # can be used if we are including speaker information as iV
 cmvn_opts=  # can be used for specifying CMVN options, if feature type is not lda (if lda,
             # it doesn't make sense to use different options than were used as input to the
             # LDA transform).  This is used to turn off CMVN in the online-nnet experiments.
+generate_egs_scp=false # If true, it will generate egs.JOB.*.scp per egs archive
 
 echo "$0 $@"  # Print the command line for logging
 
@@ -312,22 +313,35 @@ if [ $stage -le 3 ]; then
   wait;
   [ -f $dir/.error ] && echo "Error detected while creating train/valid egs" && exit 1
   echo "... Getting subsets of validation examples for diagnostics and combination."
+  if $generate_egs_scp; then
+    valid_diagnostic_output="ark,scp:$dir/valid_diagnostic.cegs,$dir/valid_diagnostic.scp"
+    train_diagnostic_output="ark,scp:$dir/train_diagnostic.cegs,$dir/train_diagnostic.scp"
+  else
+    valid_diagnostic_output="ark:$dir/valid_diagnostic.cegs"
+    train_diagnostic_output="ark:$dir/train_diagnostic.cegs"
+  fi
   $cmd $dir/log/create_valid_subset_combine.log \
     nnet3-chain-subset-egs --n=$num_valid_egs_combine ark:$dir/valid_all.cegs \
     ark:$dir/valid_combine.cegs || touch $dir/.error &
   $cmd $dir/log/create_valid_subset_diagnostic.log \
     nnet3-chain-subset-egs --n=$num_egs_diagnostic ark:$dir/valid_all.cegs \
-    ark:$dir/valid_diagnostic.cegs || touch $dir/.error &
+    $valid_diagnostic_output || touch $dir/.error &
 
   $cmd $dir/log/create_train_subset_combine.log \
     nnet3-chain-subset-egs --n=$num_train_egs_combine ark:$dir/train_subset_all.cegs \
     ark:$dir/train_combine.cegs || touch $dir/.error &
   $cmd $dir/log/create_train_subset_diagnostic.log \
     nnet3-chain-subset-egs --n=$num_egs_diagnostic ark:$dir/train_subset_all.cegs \
-    ark:$dir/train_diagnostic.cegs || touch $dir/.error &
+    $train_diagnostic_output || touch $dir/.error &
   wait
   sleep 5  # wait for file system to sync.
-  cat $dir/valid_combine.cegs $dir/train_combine.cegs > $dir/combine.cegs
+  if $generate_egs_scp; then
+    cat $dir/valid_combine.cegs $dir/train_combine.cegs > $dir/combine.tmp.cegs
+    nnet3-chain-copy-egs ark:$dir/combine.tmp.cegs ark,scp:$dir/combine.cegs,$dir/combine.scp
+    rm $dir/combine.tmp.cegs
+  else
+    cat $dir/valid_combine.cegs $dir/train_combine.cegs > $dir/combine.cegs
+  fi
 
   for f in $dir/{combine,train_diagnostic,valid_diagnostic}.cegs; do
     [ ! -s $f ] && echo "No examples in file $f" && exit 1;
@@ -376,16 +390,33 @@ if [ $stage -le 5 ]; then
   done
 
   if [ $archives_multiple == 1 ]; then # normal case.
+    if $generate_egs_scp; then
+      output_archive="ark,scp:$dir/cegs.JOB.ark,$dir/cegs.JOB.scp"
+    else
+      output_archive="ark:$dir/cegs.JOB.ark"
+    fi
     $cmd --max-jobs-run $max_shuffle_jobs_run --mem 8G JOB=1:$num_archives_intermediate $dir/log/shuffle.JOB.log \
       nnet3-chain-normalize-egs $chaindir/normalization.fst "ark:cat $egs_list|" ark:- \| \
-      nnet3-chain-shuffle-egs --srand=\$[JOB+$srand] ark:- ark:$dir/cegs.JOB.ark  || exit 1;
+      nnet3-chain-shuffle-egs --srand=\$[JOB+$srand] ark:- $output_archive || exit 1;
+    if $generate_egs_scp; then
+      #concatenate egs.JOB.scp in single egs.scp
+      rm -rf $dir/cegs.scp
+      for j in $(seq $num_archives_intermediate); do
+        cat $dir/cegs.$j.scp || exit 1;
+      done > $dir/cegs.scp || exit 1;
+      for f in $dir/cegs.*.scp; do rm $f; done
+    fi
   else
     # we need to shuffle the 'intermediate archives' and then split into the
     # final archives.  we create soft links to manage this splitting, because
     # otherwise managing the output names is quite difficult (and we don't want
     # to submit separate queue jobs for each intermediate archive, because then
     # the --max-jobs-run option is hard to enforce).
-    output_archives="$(for y in $(seq $archives_multiple); do echo ark:$dir/cegs.JOB.$y.ark; done)"
+    if $generate_egs_scp; then
+      output_archives="$(for y in $(seq $archives_multiple); do echo ark,scp:$dir/cegs.JOB.$y.ark,$dir/cegs.JOB.$y.scp; done)"
+    else
+      output_archives="$(for y in $(seq $archives_multiple); do echo ark:$dir/cegs.JOB.$y.ark; done)"
+    fi
     for x in $(seq $num_archives_intermediate); do
       for y in $(seq $archives_multiple); do
         archive_index=$[($x-1)*$archives_multiple+$y]
@@ -397,6 +428,16 @@ if [ $stage -le 5 ]; then
       nnet3-chain-normalize-egs $chaindir/normalization.fst "ark:cat $egs_list|" ark:- \| \
       nnet3-chain-shuffle-egs --srand=\$[JOB+$srand] ark:- ark:- \| \
       nnet3-chain-copy-egs ark:- $output_archives || exit 1;
+    if $generate_egs_scp; then
+      #concatenate egs.JOB.scp in single egs.scp
+      rm -rf $dir/cegs.scp
+      for j in $(seq $num_archives_intermediate); do
+        for y in $(seq $num_archives_intermediate); do
+          cat $dir/cegs.$j.$y.scp || exit 1;
+        done
+      done > $dir/cegs.scp || exit 1;
+      for f in $dir/cegs.*.*.scp; do rm $f; done
+    fi
   fi
 fi
 
