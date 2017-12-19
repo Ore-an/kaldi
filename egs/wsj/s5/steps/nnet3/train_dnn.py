@@ -73,6 +73,15 @@ def get_args():
                         rule as accepted by the --minibatch-size option of
                         nnet3-merge-egs; run that program without args to see
                         the format.""")
+    parser.add_argument("--trainer.input-model", type=str,
+                    dest='input_model', default=None,
+                    action=common_lib.NullstrToNoneAction,
+                    help="If specified, this model is used as initial "
+                         "'raw' model (0.raw in the script) instead of "
+                         "initializing the model from the xconfig. "
+                         "Also configs dir is not expected to exist "
+                         "and left/right context is computed from this "
+                         "model.")
 
     # General options
     parser.add_argument("--feat-dir", type=str, required=False,
@@ -108,10 +117,15 @@ def process_args(args):
         raise Exception("--trainer.rnn.num-chunk-per-minibatch has an invalid value")
 
     if (not os.path.exists(args.dir)
-            or not os.path.exists(args.dir+"/configs")):
-        raise Exception("This scripts expects {0} to exist and have a configs "
-                        "directory which is the output of "
-                        "make_configs.py script")
+            or (not os.path.exists(args.dir+"/configs") and
+                not os.path.exists(args.input_model))):
+        raise Exception("This script expects {0} to exist. Also either "
+                        "--trainer.input-model option as initial 'raw' model "
+                        "(used as 0.raw in the script) should be supplied or "
+                        "{0}/configs directory which is the output of "
+                        "make_configs.py script should be provided."
+                        "".format(args.dir))
+
 
     if args.transform_dir is None:
         args.transform_dir = args.ali_dir
@@ -178,10 +192,15 @@ def train(args, run_opts):
     with open('{0}/num_jobs'.format(args.dir), 'w') as f:
         f.write(str(num_jobs))
 
-    config_dir = '{0}/configs'.format(args.dir)
-    var_file = '{0}/vars'.format(config_dir)
+    if args.input_model is None:
+        config_dir = '{0}/configs'.format(args.dir)
+        var_file = '{0}/vars'.format(config_dir)
 
-    variables = common_train_lib.parse_generic_config_vars_file(var_file)
+        variables = common_train_lib.parse_generic_config_vars_file(var_file)
+    else:
+        # If args.input_model is specified, the model left and right contexts
+        # are computed using input_model.
+        variables = common_train_lib.get_input_model_info(args.input_model)
 
     # Set some variables.
     try:
@@ -199,7 +218,9 @@ def train(args, run_opts):
     # we do this as it's a convenient way to get the stats for the 'lda-like'
     # transform.
 
-    if (args.stage <= -5) and os.path.exists(args.dir+"/configs/init.config"):
+    if ((args.stage <= -5) and
+            (os.path.exists(args.dir+"/configs/init.config"))
+            and (args.input_model is None)):
         logger.info("Initializing a basic network for estimating "
                     "preconditioning matrix")
         common_lib.execute_command(
@@ -248,7 +269,8 @@ def train(args, run_opts):
     # use during decoding
     common_train_lib.copy_egs_properties_to_exp_dir(egs_dir, args.dir)
 
-    if args.stage <= -3 and os.path.exists(args.dir+"/configs/init.config"):
+    if ((args.stage <= -3) and (os.path.exists(args.dir+"/configs/init.config"))
+            and (args.input_model is None)):
         logger.info('Computing the preconditioning matrix for input features')
 
         train_lib.common.compute_preconditioning_matrix(
@@ -269,7 +291,7 @@ def train(args, run_opts):
     if args.stage <= -1:
         logger.info("Preparing the initial acoustic model.")
         train_lib.acoustic_model.prepare_initial_acoustic_model(
-            args.dir, args.ali_dir, run_opts)
+            args.dir, args.ali_dir, run_opts, input_model=args.input_model)
 
     # set num_iters so that as close as possible, we process the data
     # $num_epochs times, i.e. $num_iters*$avg_num_jobs) ==

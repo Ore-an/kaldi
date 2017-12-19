@@ -25,7 +25,6 @@ logger.addHandler(logging.NullHandler())
 def train_new_models(dir, iter, srand, num_jobs,
                      num_archives_processed, num_archives,
                      raw_model_string, egs_dir,
-                     left_context, right_context,
                      momentum, max_param_change,
                      shuffle_buffer_size, minibatch_size_str,
                      image_augmentation_opts,
@@ -163,8 +162,6 @@ def train_new_models(dir, iter, srand, num_jobs,
 def train_one_iteration(dir, iter, srand, egs_dir,
                         num_jobs, num_archives_processed, num_archives,
                         learning_rate, minibatch_size_str,
-                        num_hidden_layers, add_layers_period,
-                        left_context, right_context,
                         momentum, max_param_change, shuffle_buffer_size,
                         run_opts, image_augmentation_opts=None,
                         frames_per_eg=-1,
@@ -215,7 +212,6 @@ def train_one_iteration(dir, iter, srand, egs_dir,
     # validation set objectives
     compute_train_cv_probabilities(
         dir=dir, iter=iter, egs_dir=egs_dir,
-        left_context=left_context, right_context=right_context,
         run_opts=run_opts,
         get_raw_nnet_from_am=get_raw_nnet_from_am,
         use_multitask_egs=use_multitask_egs,
@@ -224,10 +220,8 @@ def train_one_iteration(dir, iter, srand, egs_dir,
     if iter > 0:
         # Runs in the background
         compute_progress(dir=dir, iter=iter, egs_dir=egs_dir,
-                         left_context=left_context,
-                         right_context=right_context,
                          run_opts=run_opts,
-                         get_raw_nnet_from_am=get_raw_nnet_from_am, use_multitask_egs=use_multitask_egs)
+                         get_raw_nnet_from_am=get_raw_nnet_from_am)
 
     do_average = (iter > 0)
 
@@ -265,7 +259,6 @@ def train_one_iteration(dir, iter, srand, egs_dir,
                      num_archives_processed=num_archives_processed,
                      num_archives=num_archives,
                      raw_model_string=raw_model_string, egs_dir=egs_dir,
-                     left_context=left_context, right_context=right_context,
                      momentum=momentum, max_param_change=cur_max_param_change,
                      shuffle_buffer_size=shuffle_buffer_size,
                      minibatch_size_str=cur_minibatch_size_str,
@@ -290,8 +283,7 @@ def train_one_iteration(dir, iter, srand, egs_dir,
             dir=dir, iter=iter,
             nnets_list=" ".join(nnets_list),
             run_opts=run_opts,
-            get_raw_nnet_from_am=get_raw_nnet_from_am,
-            shrink=shrinkage_value)
+            get_raw_nnet_from_am=get_raw_nnet_from_am)
 
     else:
         # choose the best model from different jobs
@@ -299,8 +291,7 @@ def train_one_iteration(dir, iter, srand, egs_dir,
             dir=dir, iter=iter,
             best_model_index=best_model,
             run_opts=run_opts,
-            get_raw_nnet_from_am=get_raw_nnet_from_am,
-            shrink=shrinkage_value)
+            get_raw_nnet_from_am=get_raw_nnet_from_am)
 
     try:
         for i in range(1, num_jobs + 1):
@@ -526,18 +517,14 @@ def combine_models(dir, num_iters, models_to_combine, egs_dir,
     if get_raw_nnet_from_am:
         compute_train_cv_probabilities(
             dir=dir, iter='combined', egs_dir=egs_dir,
-            left_context=left_context, right_context=right_context,
-            run_opts=run_opts, wait=False,
-            background_process_handler=background_process_handler,
-            use_multitask_egs=use_multitask_egs)
+            run_opts=run_opts, use_multitask_egs=use_multitask_egs,
+            compute_per_dim_accuracy=compute_per_dim_accuracy)
     else:
         compute_train_cv_probabilities(
             dir=dir, iter='final', egs_dir=egs_dir,
-            left_context=left_context, right_context=right_context,
-            run_opts=run_opts, wait=False,
-            background_process_handler=background_process_handler,
-            get_raw_nnet_from_am=False,
-            use_multitask_egs=use_multitask_egs)
+            run_opts=run_opts, get_raw_nnet_from_am=False,
+            use_multitask_egs=use_multitask_egs,
+            compute_per_dim_accuracy=compute_per_dim_accuracy)
 
 
 def get_realign_iters(realign_times, num_iters,

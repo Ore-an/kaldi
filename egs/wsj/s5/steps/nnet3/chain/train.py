@@ -254,6 +254,7 @@ def process_args(args):
         run_opts.parallel_train_opts = "--use-gpu=no"
         run_opts.combine_queue_opt = ""
 
+
     run_opts.command = args.command
     run_opts.egs_command = (args.egs_command
                             if args.egs_command is not None else
@@ -299,8 +300,13 @@ def train(args, run_opts):
     else:
         # If args.input_model is specified, the model left and right contexts
         # are computed using input_model.
-        variables = common_train_lib.get_input_model_info(args.input_model)
+        # variables = common_train_lib.get_input_model_info(args.input_model)
 
+        # The model I'm using is not "simple" so nnet3-info doesn't give context TODO: clean
+        config_dir = '{0}/configs'.format(args.dir)
+        var_file = '{0}/vars'.format(config_dir)
+
+        variables = common_train_lib.parse_generic_config_vars_file(var_file)
     # Set some variables.
     try:
         model_left_context = variables['model_left_context']
@@ -410,22 +416,25 @@ def train(args, run_opts):
 
     # use_multitask_egs is True, if egs rspecifier generated in egs dir
     # which can be used in multilingul or multi-task training.
+
     use_multitask_egs = False
-    if (os.path.exists('{0}/valid_diagnostic.scp'.format(args.egs_dir))):
-        if (os.path.exists('{0}/valid_diagnostic.egs'.format(args.egs_dir))):
-            raise Exception('both {0}/valid_diagnostic.egs and '
+    if (os.path.exists('{0}/valid_diagnostic.scp'.format(egs_dir))):
+        if (os.path.exists('{0}/valid_diagnostic.cegs'.format(egs_dir))):
+            raise Exception('both {0}/valid_diagnostic.cegs and '
                             '{0}/valid_diagnostic.scp exist.'
                             'This script expects one of them to exist.'
-                            ''.format(args.egs_dir))
+                            ''.format(egs_dir))
         use_multitask_egs = True
     else:
-        if (not os.path.exists('{0}/valid_diagnostic.egs'.format(args.egs_dir))):
-            raise Exception('neither {0}/valid_diagnostic.egs nor '
+        if (not os.path.exists('{0}/valid_diagnostic.cegs'.format(egs_dir))):
+            raise Exception('neither {0}/valid_diagnostic.cegs nor '
                             '{0}/valid_diagnostic.scp exist.'
-                            'This script expects one of them.'.format(args.egs_dir))
+                            'This script expects one of them.'.format(egs_dir))
         use_multitask_egs = False
 
-    if (add_lda and args.stage <= -2):
+
+    if ((args.stage <= -2) and (os.path.exists(args.dir+"/configs/init.config"))
+            and (args.input_model is None)):
         logger.info('Computing the preconditioning matrix for input features')
 
         chain_lib.compute_preconditioning_matrix(
@@ -527,8 +536,6 @@ def train(args, run_opts):
                     iter),
                 shrinkage_value=shrinkage_value,
                 num_chunk_per_minibatch_str=args.num_chunk_per_minibatch,
-                num_hidden_layers=num_hidden_layers,
-                add_layers_period=args.add_layers_period,
                 left_context=left_context,
                 right_context=right_context,
                 apply_deriv_weights=args.apply_deriv_weights,
@@ -575,7 +582,7 @@ def train(args, run_opts):
                 dir=args.dir, num_iters=num_iters,
                 models_to_combine=models_to_combine,
                 num_chunk_per_minibatch_str=args.num_chunk_per_minibatch,
-                egs_dir=egs_dir,
+                egs_dir=egs_dir, left_context=left_context, right_context=right_context,
                 leaky_hmm_coefficient=args.leaky_hmm_coefficient,
                 l2_regularize=args.l2_regularize,
                 xent_regularize=args.xent_regularize,
@@ -607,14 +614,26 @@ def train(args, run_opts):
             remove_egs=remove_egs)
 
     # do some reporting
-    [report, times, data] = nnet3_log_parse.generate_acc_logprob_report(
-        args.dir, "log-probability")
+    all_report = []
+    all_times = []
+    all_data = []
+    if args.den_fst_to_output:
+        output_layers = [x for fst_to_out in args.den_fst_to_output.split() for x in fst_to_out.split(':')[1::2]]
+        for out_layer in output_layers:
+            [report, times, data] = nnet3_log_parse.generate_acc_logprob_report(
+                args.dir, "log-probability", output='{0}'.format(out_layer))
+            all_report.append(report)
+            all_times.append(times)
+            all_data.append(data)
+    else:
+        [all_report, all_times, all_data] = nnet3_log_parse.generate_acc_logprob_report(
+                args.dir, "log-probability")
     if args.email is not None:
-        common_lib.send_mail(report, "Update : Expt {0} : "
+        common_lib.send_mail('\n'.join(all_report), "Update : Expt {0} : "
                                      "complete".format(args.dir), args.email)
 
     with open("{dir}/accuracy.report".format(dir=args.dir), "w") as f:
-        f.write(report)
+        f.write('\n'.join(all_report))
 
     common_lib.execute_command("steps/info/nnet3_dir_info.pl "
                                "{0}".format(args.dir))

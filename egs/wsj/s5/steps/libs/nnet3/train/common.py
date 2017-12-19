@@ -46,11 +46,11 @@ def get_outputs_list(model_file, get_raw_nnet_from_am=True):
     """
     outputs_list=""
     if get_raw_nnet_from_am:
-      outputs_list, error = common_lib.run_kaldi_command(
+      outputs_list = common_lib.get_command_stdout(
           "nnet3-am-info --print-args=false {0} | "
           "grep -e 'output-node' | cut -f2 -d' ' | cut -f2 -d'=' ".format(model_file))
     else:
-      outputs_list, error = common_lib.run_kaldi_command(
+      outputs_list = common_lib.get_command_stdout(
           "nnet3-info --print-args=false {0} | "
           "grep -e 'output-node' | cut -f2 -d' ' | cut -f2 -d'=' ".format(model_file))
 
@@ -933,10 +933,9 @@ class CommonParser(object):
                                  help="""Specifies the script to launch jobs.
                                  e.g. queue.pl for launching on SGE cluster
                                         run.pl for launching on local machine
-                                 """, default="queue.pl")
+                                 """)
         self.parser.add_argument("--egs.cmd", type=str, dest="egs_command",
                                  action=common_lib.NullstrToNoneAction,
-                                 default="queue.pl",
                                  help="Script to launch egs jobs")
         self.parser.add_argument("--use-gpu", type=str,
                                  action=common_lib.StrToBoolAction,

@@ -44,7 +44,7 @@ void LdaEstimate::Scale(BaseFloat f) {
 
 void LdaEstimate::Accumulate(const VectorBase<BaseFloat> &data,
                              int32 class_id, BaseFloat weight) {
-  KALDI_ASSERT(class_id >= 0);
+  KALDI_ASSERT(class_id >= 0); 
   KALDI_ASSERT(class_id < NumClasses() && data.Dim() == Dim());
 
   Vector<double> data_d(data);

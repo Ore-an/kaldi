@@ -37,8 +37,10 @@ num_langs=$1
 shift 1
 args=("$@")
 megs_dir=${args[-1]} # multilingual directory
+echo $megs_dir
 mkdir -p $megs_dir
 mkdir -p $megs_dir/info
+
 if [ ${#args[@]} != $[$num_langs+1] ]; then
   echo "$0: num of input example dirs provided is not compatible with num_langs $num_langs."
   echo "Usage:$0 [opts] <num-input-langs,N> <lang1-egs-dir> ...<langN-egs-dir> <multilingual-egs-dir>"
@@ -99,7 +101,8 @@ if [ $stage -le 0 ]; then
   # Generate egs.*.scp for multilingual setup.
   $cmd $megs_dir/log/allocate_multilingual_examples_train.log \
   steps/nnet3/multilingual/allocate_multilingual_examples.py $extra_opt \
-      --prefix $egs_prefix \
+      $egs_opt \
+      --egs-prefix $egs_prefix \
       --minibatch-size $minibatch_size \
       --samples-per-iter $samples_per_iter \
       $train_scp_list $megs_dir || exit 1;
@@ -110,6 +113,7 @@ if [ $stage -le 1 ]; then
   # Generate combine.scp for multilingual setup.
   $cmd $megs_dir/log/allocate_multilingual_examples_combine.log \
   steps/nnet3/multilingual/allocate_multilingual_examples.py \
+      $egs_opt \
       --random-lang false \
       --max-archives 1 --num-jobs 1 \
       --minibatch-size $minibatch_size \
@@ -120,6 +124,7 @@ if [ $stage -le 1 ]; then
   # Generate train_diagnostic.scp for multilingual setup.
   $cmd $megs_dir/log/allocate_multilingual_examples_train_diagnostic.log \
   steps/nnet3/multilingual/allocate_multilingual_examples.py \
+      $egs_opt \
       --random-lang false \
       --max-archives 1 --num-jobs 1 \
       --minibatch-size $minibatch_size \
@@ -131,6 +136,7 @@ if [ $stage -le 1 ]; then
   # Generate valid_diagnostic.scp for multilingual setup.
   $cmd $megs_dir/log/allocate_multilingual_examples_valid_diagnostic.log \
   steps/nnet3/multilingual/allocate_multilingual_examples.py \
+      $egs_opt \
       --random-lang false --max-archives 1 --num-jobs 1\
       --minibatch-size $minibatch_size \
       --egs-prefix "valid_diagnostic." \

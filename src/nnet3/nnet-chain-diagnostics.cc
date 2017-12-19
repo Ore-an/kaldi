@@ -49,28 +49,33 @@ NnetChainComputeProb::NnetChainComputeProb(
     SetNnetAsGradient(deriv_nnet_); // force simple update
   } else if (nnet_config_.store_component_stats) {
     KALDI_ERR << "If you set store_component_stats == true and "
-              << "compute_deriv == false, use the other constructor.";
+	      << "compute_deriv == false, use the other constructor.";
   }
 }
-
 
 NnetChainComputeProb::NnetChainComputeProb(
     const NnetComputeProbOptions &nnet_config,
     const chain::ChainTrainingOptions &chain_config,
-    const fst::StdVectorFst &den_fst,
+    const std::vector<fst::StdVectorFst> &den_fst,
+    const std::vector<std::string> &den_to_output,
     Nnet *nnet):
     nnet_config_(nnet_config),
     chain_config_(chain_config),
-    den_graph_(den_fst, nnet->OutputDim("output")),
-    nnet_(*nnet),
+     nnet_(*nnet),
     compiler_(*nnet, nnet_config_.optimize_config, nnet_config_.compiler_config),
     deriv_nnet_owned_(false),
     deriv_nnet_(nnet),
     num_minibatches_processed_(0) {
-  KALDI_ASSERT(nnet_config.store_component_stats && !nnet_config.compute_deriv);
-}
-
-
+  KALDI_ASSERT(den_fst.size() == den_to_output.size());
+  // Initialize den_graph using num_pdf in corresponding output node in network.
+  for (int32 fst_ind = 0; fst_ind < den_fst.size(); fst_ind++) {
+    chain::DenominatorGraph den_graph(den_fst[fst_ind],
+      nnet_.OutputDim(den_to_output[fst_ind]));
+    den_graph_.insert(std::make_pair(den_to_output[fst_ind], den_graph));
+  }
+    KALDI_ASSERT(nnet_config.store_component_stats && !nnet_config.compute_deriv);
+  }
+  
 const Nnet &NnetChainComputeProb::GetDeriv() const {
   if (!nnet_config_.compute_deriv)
     KALDI_ERR << "GetDeriv() called when no derivatives were requested.";
@@ -79,7 +84,7 @@ const Nnet &NnetChainComputeProb::GetDeriv() const {
 
 NnetChainComputeProb::~NnetChainComputeProb() {
   if (deriv_nnet_owned_)
-    delete deriv_nnet_;  // delete does nothing if pointer is NULL.
+  delete deriv_nnet_;  // delete does nothing if pointer is NULL.
 }
 
 void NnetChainComputeProb::Reset() {
@@ -224,31 +229,42 @@ const ChainObjectiveInfo* NnetChainComputeProb::GetObjective(
     return NULL;
 }
 
-void RecomputeStats(const std::vector<NnetChainExample> &egs,
-                    const chain::ChainTrainingOptions &chain_config_in,
-                    const fst::StdVectorFst &den_fst,
-                    Nnet *nnet) {
-  KALDI_LOG << "Recomputing stats on nnet (affects batch-norm)";
-  chain::ChainTrainingOptions chain_config(chain_config_in);
-  if (nnet->GetNodeIndex("output-xent") != -1 &&
-      chain_config.xent_regularize == 0) {
-    // this forces it to compute the output for 'output-xent', which
-    // means that we'll be computing batch-norm stats for any
-    // components in that branch that have batch-norm.
-    chain_config.xent_regularize = 0.1;
+double NnetChainComputeProb::GetTotalObjective(double *tot_weights) const {
+  double tot_objectives = 0.0;
+  unordered_map<std::string, ChainObjectiveInfo, StringHasher>::const_iterator
+    iter = objf_info_.begin(),
+    end = objf_info_.end();
+  for (; iter != end; ++iter) {
+    tot_objectives += iter->second.tot_like + iter->second.tot_l2_term;
+    (*tot_weights) += iter->second.tot_weight;
   }
-
-  ZeroComponentStats(nnet);
-  NnetComputeProbOptions nnet_config;
-  nnet_config.store_component_stats = true;
-  NnetChainComputeProb prob_computer(nnet_config, chain_config, den_fst, nnet);
-  for (size_t i = 0; i < egs.size(); i++)
-    prob_computer.Compute(egs[i]);
-  prob_computer.PrintTotalStats();
-  KALDI_LOG << "Done recomputing stats.";
+  return tot_objectives;
 }
 
+  void RecomputeStats(const std::vector<NnetChainExample> &egs,
+		      const chain::ChainTrainingOptions &chain_config_in,
+		      const std::vector<fst::StdVectorFst> &den_fst,
+		      const std::vector<std::string> &den_to_output,
+		      Nnet *nnet) {
+    KALDI_LOG << "Recomputing stats on nnet (affects batch-norm)";
+    chain::ChainTrainingOptions chain_config(chain_config_in);
+    if (nnet->GetNodeIndex("output-xent") != -1 &&
+	chain_config.xent_regularize == 0) {
+      // this forces it to compute the output for 'output-xent', which
+      // means that we'll be computing batch-norm stats for any
+      // components in that branch that have batch-norm.
+      chain_config.xent_regularize = 0.1;
+    }
 
-
+    ZeroComponentStats(nnet);
+    NnetComputeProbOptions nnet_config;
+    nnet_config.store_component_stats = true;
+    NnetChainComputeProb prob_computer(nnet_config, chain_config, den_fst, den_to_output, nnet);
+    for (size_t i = 0; i < egs.size(); i++)
+      prob_computer.Compute(egs[i]);
+    prob_computer.PrintTotalStats();
+    KALDI_LOG << "Done recomputing stats.";
+  }
+  
 } // namespace nnet3
 } // namespace kaldi

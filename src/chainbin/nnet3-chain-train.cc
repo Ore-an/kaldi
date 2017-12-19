@@ -61,7 +61,7 @@ int main(int argc, char *argv[]) {
 
     srand(srand_seed);
 
-    if (po.NumArgs() != 4) {
+    if (po.NumArgs() < 4) {
       po.PrintUsage();
       exit(1);
     }

@@ -117,6 +117,7 @@ for f in $data/feats.scp $latdir/lat.1.gz $latdir/final.mdl \
   [ ! -f $f ] && echo "$0: no such file $f" && exit 1;
 done
 
+echo $cmd
 sdata=$data/split$nj
 utils/split_data.sh $data $nj
 

@@ -66,19 +66,21 @@ def generate_egs(data, alidir, egs_dir,
 
 
 def prepare_initial_acoustic_model(dir, alidir, run_opts,
-                                   srand=-3):
+                                   srand=-3, input_model=None):
     """ Adds the first layer; this will also add in the lda.mat and
         presoftmax_prior_scale.vec. It will also prepare the acoustic model
         with the transition model."""
-
-    common_train_lib.prepare_initial_network(dir, run_opts,
+    if input_model is None:
+        common_train_lib.prepare_initial_network(dir, run_opts,
                                              srand=srand)
 
     # Convert to .mdl, train the transitions, set the priors.
     common_lib.execute_command(
         """{command} {dir}/log/init_mdl.log \
-                nnet3-am-init {alidir}/final.mdl {dir}/0.raw - \| \
+                nnet3-am-init {alidir}/final.mdl {raw_mdl} - \| \
                 nnet3-am-train-transitions - \
                 "ark:gunzip -c {alidir}/ali.*.gz|" {dir}/0.mdl
         """.format(command=run_opts.command,
-                   dir=dir, alidir=alidir))
+                   dir=dir, alidir=alidir,
+                   raw_mdl=(input_model if input_model is not None
+                   else '{0}/0.raw'.format(dir))))
