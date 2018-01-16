@@ -67,7 +67,7 @@ def generate_chain_egs(dir, data, lat_dir, egs_dir,
                        left_context_initial=-1, right_context_final=-1,
                        frame_subsampling_factor=3,
                        alignment_subsampling_factor=3,
-                       feat_type='raw', online_ivector_dir=None,
+                       online_ivector_dir=None,
                        frames_per_iter=20000, frames_per_eg_str="20", srand=0,
                        egs_opts=None, cmvn_opts=None, transform_dir=None):
     """Wrapper for steps/nnet3/chain/get_egs.sh
@@ -96,7 +96,6 @@ def generate_chain_egs(dir, data, lat_dir, egs_dir,
                 {data} {dir} {lat_dir} {egs_dir}""".format(
                     command=run_opts.egs_command,
                     cmvn_opts=cmvn_opts if cmvn_opts is not None else '',
-                    feat_type=feat_type,
                     transform_dir=(transform_dir
                                    if transform_dir is not None
                                    else ''),
@@ -374,8 +373,7 @@ def train_one_iteration(dir, iter, srand, egs_dir,
             dir=dir, iter=iter,
             nnets_list=" ".join(nnets_list),
             run_opts=run_opts,
-            get_raw_nnet_from_am=False,
-            shrink=shrinkage_value)
+            get_raw_nnet_from_am=False)
 
     else:
         # choose the best model from different jobs
@@ -383,8 +381,7 @@ def train_one_iteration(dir, iter, srand, egs_dir,
             dir=dir, iter=iter,
             best_model_index=best_model,
             run_opts=run_opts,
-            get_raw_nnet_from_am=False,
-            shrink=shrinkage_value)
+            get_raw_nnet_from_am=False)
 
     try:
         for i in range(1, num_jobs + 1):
@@ -591,7 +588,7 @@ def combine_models(dir, num_iters, models_to_combine, num_chunk_per_minibatch_st
                    egs_dir, left_context, right_context,
                    leaky_hmm_coefficient, l2_regularize,
                    xent_regularize, run_opts,
-                   sum_to_one_penalty=0.0,
+                   max_objective_evaluations=30,
                    use_multitask_egs=False,
                    den_fst_to_output_list=None):
     """ Function to do model combination
@@ -605,9 +602,6 @@ def combine_models(dir, num_iters, models_to_combine, num_chunk_per_minibatch_st
     logger.info("Combining {0} models.".format(models_to_combine))
 
     models_to_combine.add(num_iters)
-
-    # TODO: if it turns out the sum-to-one-penalty code is not useful,
-    # remove support for it.
 
     for iter in sorted(models_to_combine):
         model_file = '{0}/{1}.raw'.format(dir, iter)
@@ -653,12 +647,8 @@ def combine_models(dir, num_iters, models_to_combine, num_chunk_per_minibatch_st
                              use_multitask_egs=use_multitask_egs)
     common_lib.execute_command(
         """{command} {combine_queue_opt} {dir}/log/combine.log \
-                nnet3-chain-combine {den_fst_opts} --num-iters={opt_iters} \
+                nnet3-chain-combine {den_fst_opts} --max-objective-evaluations={max_objective_evaluations} \
                 --l2-regularize={l2} --leaky-hmm-coefficient={leaky} \
-                --separate-weights-per-component={separate_weights} \
-                --enforce-sum-to-one={hard_enforce} \
-                --sum-to-one-penalty={penalty} \
-                --enforce-positive-weights=true \
                 --verbose=3 {den_fsts} {raw_models} \
                 "ark,bg:nnet3-chain-copy-egs --left-context={lc} {multitask_egs_opts} \
                     --right-context={rc} {scp_or_ark}:{egs_dir}/combine{egs_suffix} ark:- | \
@@ -666,13 +656,10 @@ def combine_models(dir, num_iters, models_to_combine, num_chunk_per_minibatch_st
                     ark:- ark:- |" {dir}/final.raw""".format(
                     command=run_opts.command,
                     combine_queue_opt=run_opts.combine_queue_opt,
-                    opt_iters=(20 if sum_to_one_penalty <= 0 else 80),
-                    separate_weights=(sum_to_one_penalty > 0),
+                    max_objective_evaluations=max_objective_evaluations,
                     lc=left_context, rc=right_context,
                     l2=l2_regularize, leaky=leaky_hmm_coefficient,
                     dir=dir, raw_models=" ".join(raw_model_strings),
-                    hard_enforce=(sum_to_one_penalty <= 0),
-                    penalty=sum_to_one_penalty,
                     num_chunk_per_mb=num_chunk_per_minibatch_str,
                     num_iters=num_iters,
                     egs_dir=egs_dir,

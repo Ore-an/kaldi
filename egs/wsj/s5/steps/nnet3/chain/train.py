@@ -589,7 +589,7 @@ def train(args, run_opts):
                 use_multitask_egs=use_multitask_egs,
                 den_fst_to_output_list=args.den_fst_to_output,
                 run_opts=run_opts,
-                sum_to_one_penalty=args.combine_sum_to_one_penalty)
+                max_objective_evaluations=args.max_objective_evaluations)
         else:
             logger.info("Copying the last-numbered model to final.mdl")
             common_lib.force_symlink("{0}.mdl".format(num_iters),
