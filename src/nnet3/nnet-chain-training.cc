@@ -33,7 +33,7 @@ NnetChainTrainer::NnetChainTrainer(const NnetChainTrainingOptions &opts,
     compiler_(*nnet, opts_.nnet_config.optimize_config,
               opts_.nnet_config.compiler_config),
     num_minibatches_processed_(0),
-     {
+     srand_seed_(RandInt(0, 100000)) {
   KALDI_ASSERT(den_fst.size() == den_to_output.size());
   // Initialize den_graph using num_pdf in corresponding output node in network.
   for (int32 fst_ind = 0; fst_ind < den_fst.size(); fst_ind++) {
