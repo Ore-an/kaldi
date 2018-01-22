@@ -60,6 +60,16 @@ void Nnet::SetNodeName(int32 node_index, const std::string &new_name) {
   node_names_[node_index] = new_name;
 }
 
+void Nnet::SetComponentName(int32 component_index, const std::string &new_name) {
+  if (!(static_cast<size_t>(component_index) < components_.size()))
+    KALDI_ERR << "Invalid component index";
+  if (GetComponentIndex(new_name) != -1)
+    KALDI_ERR << "You cannot rename a component to create a duplicate component name";
+  if (!IsValidName(new_name))
+    KALDI_ERR << "Component name " << new_name << " is not allowed.";
+  component_names_[component_index] = new_name;
+}
+
 const std::vector<std::string> &Nnet::GetNodeNames() const {
   return node_names_;
 }
@@ -242,7 +252,60 @@ void Nnet::ReadConfig(std::istream &config_is) {
   Check();
 }
 
+void Nnet::AddNodesFromNnet(const std::vector<std::string> &config) {
 
+  std::vector<std::string> lines;
+  // Write into "lines" a config file corresponding to whatever
+  // nodes we currently have.  Because the numbering of nodes may
+  // change, it's most convenient to convert to the text representation
+  // and combine the existing and new config lines in that representation.
+  const bool include_dim = false;
+  GetConfigLines(include_dim, &lines);
+
+  // we'll later regenerate what we need from nodes_ and node_name_ from the
+  // string representation.
+  nodes_.clear();
+  node_names_.clear();
+
+  int32 num_lines_initial = lines.size();
+
+  lines.insert(lines.end(), config.begin(), config.end());
+
+  std::vector<ConfigLine> config_lines(lines.size());
+
+  ParseConfigLines(lines, &config_lines);
+  // the next line will possibly remove some elements from "config_lines" so no
+  // node or component is doubly defined, always keeping the second repeat.
+  // Things being doubly defined can happen when a previously existing node or
+  // component is redefined in a new config file.
+  RemoveRedundantConfigLines(num_lines_initial, &config_lines);
+
+  int32 initial_num_components = components_.size();
+  for (int32 pass = 0; pass <= 1; pass++) {
+    for (size_t i = 0; i < config_lines.size(); i++) {
+      const std::string &first_token = config_lines[i].FirstToken();
+      if (first_token == "component") {
+        if (pass == 0)
+          ProcessComponentConfigLine(initial_num_components,
+                                     &(config_lines[i]));
+      } else if (first_token == "component-node") {
+        ProcessComponentNodeConfigLine(pass,  &(config_lines[i]));
+      } else if (first_token == "input-node") {
+        if (pass == 0)
+          ProcessInputNodeConfigLine(&(config_lines[i]));
+      } else if (first_token == "output-node") {
+        ProcessOutputNodeConfigLine(pass, &(config_lines[i]));
+      } else if (first_token == "dim-range-node") {
+        ProcessDimRangeNodeConfigLine(pass, &(config_lines[i]));
+      } else {
+        KALDI_ERR << "Invalid config-file line ('" << first_token
+                  << "' not expected): " << config_lines[i].WholeLine();
+      }
+    }
+  }
+  const bool warn_for_orphans = false;
+  Check(warn_for_orphans, true);
+}
 // called only on pass 0 of ReadConfig.
 void Nnet::ProcessComponentConfigLine(
     int32 initial_num_components,
@@ -691,7 +754,7 @@ const std::string& Nnet::GetComponentName(int32 component_index) const {
   return component_names_[component_index];
 }
 
-void Nnet::Check(bool warn_for_orphans) const {
+void Nnet::Check(bool warn_for_orphans, bool assert_no_out) const {
   int32 num_nodes = nodes_.size(),
     num_input_nodes = 0,
     num_output_nodes = 0;
@@ -769,8 +832,10 @@ void Nnet::Check(bool warn_for_orphans) const {
                  "Duplicate component names?");
   }
   KALDI_ASSERT(num_input_nodes > 0);
-  KALDI_ASSERT(num_output_nodes > 0);
-
+  if (assert_no_out) 
+    KALDI_ASSERT(num_output_nodes > 0);
+  else if (num_output_nodes < 1)
+    KALDI_WARN << "The network has no output layers";
 
   if (warn_for_orphans) {
     std::vector<int32> orphans;
@@ -878,7 +943,7 @@ void Nnet::RemoveOrphanComponents() {
   Check();
 }
 
-void Nnet::RemoveSomeNodes(const std::vector<int32> &nodes_to_remove) {
+void Nnet::RemoveSomeNodes(const std::vector<int32> &nodes_to_remove, bool assert_no_out) {
   if (nodes_to_remove.empty())
     return;
   int32 old_num_nodes = nodes_.size(),
@@ -925,7 +990,7 @@ void Nnet::RemoveSomeNodes(const std::vector<int32> &nodes_to_remove) {
   // don't warn about orphans, because at this stage we may have
   // orphan components that will later be removed by calling
   // RemoveOrphanComponents().
-  Check(warn_for_orphans);
+  Check(warn_for_orphans, assert_no_out);
 }
 
 

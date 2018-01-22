@@ -36,7 +36,7 @@ double ComputeObjf(bool batchnorm_test_mode, bool dropout_test_mode,
                    const std::vector<NnetChainExample> &egs, const Nnet &nnet,
                    const chain::ChainTrainingOptions &chain_config,
                    const std::vector<fst::StdVectorFst> &den_fst,
-		   const std::vector<std::string> &den_to_output,
+		           const std::vector<std::string> &den_to_output,
                    NnetChainComputeProb *prob_computer) {
   if (batchnorm_test_mode || dropout_test_mode) {
     Nnet nnet_copy(nnet);
@@ -55,17 +55,28 @@ double ComputeObjf(bool batchnorm_test_mode, bool dropout_test_mode,
                                                    end = egs.end();
     for (; iter != end; ++iter)
       prob_computer->Compute(*iter);
-    const ChainObjectiveInfo *objf_info =
-        prob_computer->GetObjective("output");
-    if (objf_info == NULL)
-      KALDI_ERR << "Error getting objective info (unsuitable egs?)";
-    KALDI_ASSERT(objf_info->tot_weight > 0.0);
-    // inf/nan tot_objf->return -inf objective.
-    double tot_objf = objf_info->tot_like + objf_info->tot_l2_term;
-    if (!(tot_objf == tot_objf && tot_objf - tot_objf == 0))
-      return -std::numeric_limits<double>::infinity();
-    // we prefer to deal with normalized objective functions.
-    return tot_objf / objf_info->tot_weight;
+    if (den_to_output.size() < 2) {
+        const ChainObjectiveInfo *objf_info =
+            prob_computer->GetObjective("output");
+        if (objf_info == NULL)
+          KALDI_ERR << "Error getting objective info (unsuitable egs?)";
+        KALDI_ASSERT(objf_info->tot_weight > 0.0);
+        // inf/nan tot_objf->return -inf objective.
+        double tot_objf = objf_info->tot_like + objf_info->tot_l2_term;
+        if (!(tot_objf == tot_objf && tot_objf - tot_objf == 0))
+          return -std::numeric_limits<double>::infinity();
+        // we prefer to deal with normalized objective functions.
+        return tot_objf / objf_info->tot_weight;
+    } else {
+        double tot_weights,
+            tot_objf = prob_computer->GetObjectiveOuts(&tot_weights, den_to_output);
+        KALDI_ASSERT(tot_weights > 0.0);
+        // inf/nan tot_objf->return -inf objective.
+        if (!(tot_objf == tot_objf && tot_objf - tot_objf == 0))
+          return -std::numeric_limits<double>::infinity();
+        // we prefer to deal with normalized objective functions.
+        return tot_objf / tot_weights;
+      }
   }
 }
 
@@ -190,7 +201,7 @@ int main(int argc, char *argv[]) {
         best_objf = init_objf;
     KALDI_LOG << "objective function using the last model is " << init_objf;
 
-    int32 num_nnets = po.NumArgs() - 3;
+    int32 num_nnets = po.NumArgs() - 2 - num_den_fst;
     // then each time before we re-evaluate the objective function, we will add
     // num_to_add models to the moving average.
     int32 num_to_add = (num_nnets + max_objective_evaluations - 1) /

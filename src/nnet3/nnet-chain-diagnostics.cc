@@ -241,6 +241,24 @@ double NnetChainComputeProb::GetTotalObjective(double *tot_weights) const {
   return tot_objectives;
 }
 
+double NnetChainComputeProb::GetObjectiveOuts(double *tot_weights, const std::vector<std::string> &outputs) const {
+  double tot_objectives = 0.0;
+  unordered_map<std::string, ChainObjectiveInfo, StringHasher>::const_iterator
+    iter = objf_info_.begin(),
+    end = objf_info_.end();
+  for (; iter != end; ++iter) {
+    for (int32 out_ind = 0; out_ind < outputs.size(); out_ind++) {
+      KALDI_LOG << "KILL ME NOW" << iter->first << objf_info_.find(outputs[out_ind])->first << outputs[out_ind] ;
+      if (iter == objf_info_.find(outputs[out_ind])) {
+        tot_objectives += iter->second.tot_like + iter->second.tot_l2_term;
+        (*tot_weights) += iter->second.tot_weight;
+      }
+    }
+  }
+  KALDI_LOG << "tot w:" << *tot_weights << " tot ob" << tot_objectives;
+  return tot_objectives;
+}
+
   void RecomputeStats(const std::vector<NnetChainExample> &egs,
 		      const chain::ChainTrainingOptions &chain_config_in,
 		      const std::vector<fst::StdVectorFst> &den_fst,

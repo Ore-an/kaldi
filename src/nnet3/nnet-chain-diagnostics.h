@@ -83,6 +83,9 @@ class NnetChainComputeProb {
   // NnetCombiner::ComputeObjfAndDerivFromNnet() would use this function instead.
   double GetTotalObjective(double *tot_weights) const;
 
+  // Returns objf sum for all outputs in passed list
+  double GetObjectiveOuts(double *tot_weights, const std::vector<std::string> &outputs) const;
+
   // if config.compute_deriv == true, returns a reference to the
   // computed derivative.  Otherwise crashes.
   const Nnet &GetDeriv() const;

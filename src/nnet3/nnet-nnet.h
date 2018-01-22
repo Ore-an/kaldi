@@ -121,6 +121,10 @@ class Nnet {
   // non-member because it doesn't need special access).
   void ReadConfig(std::istream &config_file);
 
+
+  void AddNodesFromNnet(const std::vector<std::string> &config);
+
+
   int32 NumComponents() const { return components_.size(); }
 
   int32 NumNodes() const { return nodes_.size(); }
@@ -190,6 +194,8 @@ class Nnet {
   /// name to an existing node while leaving all connections identical.
   void SetNodeName(int32 node_index, const std::string &new_name);
 
+  void SetComponentName(int32 component_index, const std::string &new_name);
+
   /// returns vector of component names (needed by some parsing code, for instance).
   const std::vector<std::string> &GetComponentNames() const;
 
@@ -220,7 +226,7 @@ class Nnet {
   /// other requirements).
   /// You can call this with warn_for_orphans = false to disable the warnings
   /// that are printed if orphan nodes or components exist.
-  void Check(bool warn_for_orphans = true) const;
+  void Check(bool warn_for_orphans = true, bool assert_no_out = true) const;
 
   /// returns some human-readable information about the network, mostly for
   /// debugging purposes.
@@ -258,7 +264,7 @@ class Nnet {
 
   // Removes some nodes.  This is not to be called without a lot of thought,
   // as it could ruin the graph structure if done carelessly.
-  void RemoveSomeNodes(const std::vector<int32> &nodes_to_remove);
+  void RemoveSomeNodes(const std::vector<int32> &nodes_to_remove, bool assert_no_out = true);
 
   void ResetGenerators(); // resets random-number generators for all
   // random components.  You must call srand() prior to this call, for this to
