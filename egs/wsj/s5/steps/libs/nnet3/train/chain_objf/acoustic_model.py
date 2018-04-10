@@ -187,7 +187,7 @@ def train_new_models(dir, iter, srand, num_jobs,
                           if job == 1 else ""))
 
         thread = common_lib.background_command(
-            """{command} {train_queue_opt} {dir}/log/train.{iter}.{job}.log \
+            """sleep {time}; {command} {train_queue_opt} {dir}/log/train.{iter}.{job}.log \
                     nnet3-chain-train {parallel_train_opts} {verbose_opt} \
                     --apply-deriv-weights={app_deriv_wts} \
                     --l2-regularize={l2} --leaky-hmm-coefficient={leaky} \
@@ -207,6 +207,7 @@ def train_new_models(dir, iter, srand, num_jobs,
                         --srand={srand} ark:- ark:- | nnet3-chain-merge-egs \
                         --minibatch-size={num_chunk_per_mb} ark:- ark:- |" \
                     {dir}/{next_iter}.{job}.raw""".format(
+                        time=((job-1)*10),
                         command=run_opts.command,
                         train_queue_opt=run_opts.train_queue_opt,
                         dir=dir, iter=iter, srand=iter + srand,

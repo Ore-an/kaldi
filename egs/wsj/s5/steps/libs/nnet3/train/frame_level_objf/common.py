@@ -136,7 +136,7 @@ def train_new_models(dir, iter, srand, num_jobs,
 
         # note: the thread waits on that process's completion.
         thread = common_lib.background_command(
-            """{command} {train_queue_opt} {dir}/log/train.{iter}.{job}.log \
+            """sleep {time}; {command} {train_queue_opt} {dir}/log/train.{iter}.{job}.log \
                     nnet3-train {parallel_train_opts} {cache_io_opts} \
                      {verbose_opt} --print-interval=10 \
                     --momentum={momentum} \
@@ -147,6 +147,7 @@ def train_new_models(dir, iter, srand, num_jobs,
                     --srand={srand} {train_opts} \
                     {deriv_time_opts} "{raw_model}" "{egs_rspecifier}" \
                     {dir}/{next_iter}.{job}.raw""".format(
+                time=((job-1)*10),
                 command=run_opts.command,
                 train_queue_opt=run_opts.train_queue_opt,
                 dir=dir, iter=iter,
