@@ -40,7 +40,7 @@ struct FrameExtractionOptions {
   BaseFloat preemph_coeff;  // Preemphasis coefficient.
   bool remove_dc_offset;  // Subtract mean of wave before FFT.
   std::string window_type;  // e.g. Hamming window
-  // May be "hamming", "rectangular", "povey", "hanning", "blackman"
+  // May be "hamming", "rectangular", "povey", "hanning", "sine", "blackman"
   // "povey" is a window I made to be similar to Hamming but to go to zero at the
   // edges, it's pow((0.5 - 0.5*cos(n/N*2*pi)), 0.85)
   // I just don't think the Hamming window makes sense as a windowing function.
@@ -62,8 +62,9 @@ struct FrameExtractionOptions {
       blackman_coeff(0.42),
       snip_edges(true),
       allow_downsample(false),
-      max_feature_vectors(-1),
-      allow_upsample(false) { }
+      allow_upsample(false),
+      max_feature_vectors(-1)
+      { }
 
   void Register(OptionsItf *opts) {
     opts->Register("sample-frequency", &samp_freq,
@@ -80,7 +81,7 @@ struct FrameExtractionOptions {
                    "option, e.g. to 1.0 or 0.1");
     opts->Register("window-type", &window_type, "Type of window "
                    "(\"hamming\"|\"hanning\"|\"povey\"|\"rectangular\""
-                   "|\"blackmann\")");
+                   "|\"sine\"|\"blackmann\")");
     opts->Register("blackman-coeff", &blackman_coeff,
                    "Constant coefficient for generalized Blackman window.");
     opts->Register("round-to-power-of-two", &round_to_power_of_two,
@@ -161,7 +162,7 @@ void Preemphasize(VectorBase<BaseFloat> *waveform, BaseFloat preemph_coeff);
 
 /**
   This function does all the windowing steps after actually
-  extracting the windowed signal: depeding on the
+  extracting the windowed signal: depending on the
   configuration, it does dithering, dc offset removal,
   preemphasis, and multiplication by the windowing function.
    @param [in] opts  The options class to be used
