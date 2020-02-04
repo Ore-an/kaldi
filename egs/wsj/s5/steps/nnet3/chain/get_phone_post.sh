@@ -205,6 +205,7 @@ if [ $stage -le 1 ]; then
           for (pdf=0;pdf<num_pdfs;pdf++) printf("%.3f ", counts[pdf,phone]/pdf_count[pdf]);
            print ""; } print "]"; }' <$dir/combined_info.txt >$dir/transform.mat
 
+  # (counts[pdf,phone]+1)/(pdf_count[pdf]+1))
 fi
 
 

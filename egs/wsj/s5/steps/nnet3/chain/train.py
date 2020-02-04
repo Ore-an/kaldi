@@ -242,6 +242,7 @@ def process_args(args):
         run_opts.parallel_train_opts = "--use-gpu={}".format(args.use_gpu)
         run_opts.combine_queue_opt = "--gpu 1"
         run_opts.combine_gpu_opt = "--use-gpu={}".format(args.use_gpu)
+        run_opts.use_gpu_num = args.use_gpu_num
 
     else:
         logger.warning("Without using a GPU this will be very slow. "

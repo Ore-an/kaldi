@@ -40,7 +40,8 @@ class RunOpts(object):
         self.prior_gpu_opt = None
         self.prior_queue_opt = None
         self.parallel_train_opts = None
-
+        self.use_gpu_num = None
+        
 def get_outputs_list(model_file, get_raw_nnet_from_am=True):
     """ Generates list of output-node-names used in nnet3 model configuration.
         It will normally return 'output'.
@@ -946,6 +947,10 @@ class CommonParser(object):
                                  help="Use GPU for training. "
                                  "Note 'true' and 'false' are deprecated.",
                                  default="yes")
+        self.parser.add_argument("--use-gpu-num", type=int,
+                                 nargs='+',
+                                 help="Indexes of GPUs to use for training.",
+                                 default=[0, 1, 2, 3])
         self.parser.add_argument("--cleanup", type=str,
                                  action=common_lib.StrToBoolAction,
                                  choices=["true", "false"], default=True,

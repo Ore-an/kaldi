@@ -29,15 +29,15 @@ wsj1=/export/corpora5/LDC/LDC94S13B
 
 if [ $stage -le 0 ]; then
   # data preparation.
-  local/wsj_data_prep.sh $wsj0/??-{?,??}.? $wsj1/??-{?,??}.?  || exit 1;
+#  local/wsj_data_prep.sh $wsj0/??-{?,??}.? $wsj1/??-{?,??}.?  || exit 1;
 
   # Sometimes, we have seen WSJ distributions that do not have subdirectories
   # like '11-13.1', but instead have 'doc', 'si_et_05', etc. directly under the
   # wsj0 or wsj1 directories. In such cases, try the following:
   #
-  # corpus=/exports/work/inf_hcrc_cstr_general/corpora/wsj
-  # local/cstr_wsj_data_prep.sh $corpus
-  # rm data/local/dict/lexiconp.txt
+  corpus=/group/corpora/public/wsj
+  local/cstr_wsj_data_prep.sh $corpus
+  rm data/local/dict/lexiconp.txt
   # $corpus must contain a 'wsj0' and a 'wsj1' subdirectory for this to work.
   #
   # "nosp" refers to the dictionary before silence probabilities and pronunciation
@@ -49,6 +49,8 @@ if [ $stage -le 0 ]; then
 
   local/wsj_format_data.sh --lang-suffix "_nosp" || exit 1;
 
+  local/cstr_wsj_extend_dict.sh --dict-suffix "_nosp" $corpus/wsj1/doc/
+  exit;
   # We suggest to run the next three commands in the background,
   # as they are not a precondition for the system building and
   # most of the tests: these commands build a dictionary
