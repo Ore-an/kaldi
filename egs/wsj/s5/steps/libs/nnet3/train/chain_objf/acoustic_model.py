@@ -7,8 +7,6 @@
 """ This is a module with methods which will be used by scripts for training of
 deep neural network acoustic model with chain objective.
 """
-from __future__ import division
-from __future__ import print_function
 
 import logging
 import math
@@ -169,7 +167,7 @@ def train_new_models(dir, iter, srand, num_jobs,
         # work out the 1-based archive index.
         archive_index = (k % num_archives) + 1
         # previous : frame_shift = (k/num_archives) % frame_subsampling_factor
-        frame_shift = ((archive_index + k//num_archives)
+        frame_shift = ((archive_index + k/num_archives)
                        % frame_subsampling_factor)
 
         multitask_egs_opts = common_train_lib.get_multitask_egs_opts(
